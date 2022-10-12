@@ -3,6 +3,8 @@ const { Users } = require("../models");
 const jwt = require("jsonwebtoken");
 const authMiddleware = require("../middlewares/auth-middleware");
 const Joi = require("joi");
+const bcrypt = require('bcrypt');
+const saltRounds = 12;
 
 const app = express();
 const router = express.Router();
@@ -35,8 +37,15 @@ router.post("/signup", async (req, res) => {
         });
         return;
       }
+  bcrypt.genSalt(saltRounds, function(err, salt) {
+    bcrypt.hash(password, salt, async function(err, hash) {
+        if(err) return res.status(400).send({errorMessage: err});
+        await Users.create({ nickname, password:hash });
+    });
+});
+    
   
-      await Users.create({ nickname, password });
+      
   
       res.status(201).send({ "message": "회원가입이 완료되었습니다"});
     } catch (err) { // User에서 찾은 값 postUsersSchema.validationAsync(req.body) 검증 실패
@@ -57,9 +66,10 @@ router.post("/login", async (req, res) => {
     const { nickname, password } = await postAuthSchema.validateAsync(req.body);
 
     const user = await Users.findOne({
-      where: { nickname, password }, });
+      where: { nickname }, });
 
-    if (!user || password !== user.password) {
+      const result = await bcrypt.compare(password, user.password);
+    if (!user || !result) {
       res.status(400).send({
         errorMessage: "닉네임 또는 패스워드가 잘못됐습니다.",
       });
